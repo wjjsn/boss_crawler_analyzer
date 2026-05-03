@@ -118,7 +118,7 @@ def main():
         return
 
     csv_path = "boss_jobs.csv"
-    fieldnames = list(rows[0].keys())
+    fieldnames = list(dict.fromkeys(k for row in rows for k in row.keys()))
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
