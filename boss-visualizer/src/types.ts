@@ -17,6 +17,12 @@ export interface Job {
   stage: string;
   address: string;
   url: string;
+  skills_normalized?: SkillNormalized[];
+}
+
+export interface SkillNormalized {
+  name: string;
+  score: number;
 }
 
 export interface GraphNode {

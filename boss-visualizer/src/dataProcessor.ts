@@ -42,7 +42,13 @@ export function transformToGraphData(jobs: Job[], filters: FilterState): GraphDa
     const salary = parseSalary(job.salary);
     const jobKey = job.name;
     const companyKey = job.company;
-    const skills = job.skills ? job.skills.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    let skills: string[] = [];
+    if (job.skills_normalized && job.skills_normalized.length > 0) {
+      skills = job.skills_normalized.map(s => s.name);
+    } else if (job.skills) {
+      skills = job.skills.split(',').map(s => s.trim()).filter(Boolean);
+    }
 
     if (!jobSalaryMap.has(jobKey)) {
       jobSalaryMap.set(jobKey, { total: 0, count: 0 });
@@ -145,7 +151,13 @@ export function getSkillCooccurrence(jobs: Job[], filters: FilterState): SkillCo
   const cooccurrence: Map<string, number> = new Map();
 
   filteredJobs.forEach(job => {
-    const skills = job.skills ? job.skills.split(',').map(s => s.trim()).filter(Boolean) : [];
+    let skills: string[] = [];
+    if (job.skills_normalized && job.skills_normalized.length > 0) {
+      skills = job.skills_normalized.map(s => s.name);
+    } else if (job.skills) {
+      skills = job.skills.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
     for (let i = 0; i < skills.length; i++) {
       for (let j = i + 1; j < skills.length; j++) {
         const key = [skills[i], skills[j]].sort().join('|||');
@@ -164,7 +176,9 @@ export function getUniqueValues(jobs: Job[], field: keyof Job): string[] {
   const values = new Set<string>();
   jobs.forEach(job => {
     const val = job[field];
-    if (val) values.add(val);
+    if (typeof val === 'string' && val) {
+      values.add(val);
+    }
   });
   return Array.from(values).sort();
 }

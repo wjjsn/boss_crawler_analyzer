@@ -70,6 +70,20 @@ function App() {
     setSelectedNode(null);
   }, [jobs]);
 
+  const getNodeStyle = useCallback((nodeId: string) => {
+    const baseOpacity = !selectedNode ? 1 : (nodeId === selectedNode ? 1 : 0.15);
+    return {
+      opacity: baseOpacity,
+    };
+  }, [selectedNode]);
+
+  const getLinkStyle = useCallback((source: string, target: string) => {
+    const baseOpacity = !selectedNode ? 0.6 : (source === selectedNode || target === selectedNode ? 0.9 : 0.05);
+    return {
+      opacity: baseOpacity,
+    };
+  }, [selectedNode]);
+
   const graphOption = useMemo((): EChartsOption => {
     if (!graphData || graphData.nodes.length === 0) {
       return {};
@@ -120,6 +134,15 @@ function App() {
             category: node.type === 'skill' ? 0 : node.type === 'job' ? 1 : 2,
             itemStyle: {
               color: nodeColors[node.type] || '#999',
+              ...getNodeStyle(node.id),
+            },
+            emphasis: {
+              itemStyle: {
+                borderColor: '#333',
+                borderWidth: 2,
+                shadowBlur: 10,
+                shadowColor: 'rgba(0,0,0,0.3)',
+              },
             },
           })),
           links: graphData.links.map(link => ({
@@ -127,7 +150,12 @@ function App() {
             target: link.target,
             lineStyle: {
               width: link.value,
-              opacity: 0.6,
+              ...getLinkStyle(link.source, link.target),
+            },
+            emphasis: {
+              lineStyle: {
+                width: link.value + 1,
+              },
             },
           })),
           roam: true,
@@ -137,8 +165,8 @@ function App() {
             fontSize: 10,
           },
           force: {
-            repulsion: 100,
-            edgeLength: [50, 200],
+            repulsion: 120,
+            edgeLength: [60, 180],
           },
           lineStyle: {
             curveness: 0.1,
@@ -148,7 +176,7 @@ function App() {
     };
 
     return option;
-  }, [graphData]);
+  }, [graphData, selectedNode, getNodeStyle, getLinkStyle]);
 
   const heatmapOption = useMemo((): EChartsOption => {
     if (cooccurrence.length === 0) {
@@ -231,9 +259,16 @@ function App() {
       return graphData.nodes.find(n => n.id === targetId);
     }).filter(Boolean);
 
+    const relatedByType = {
+      skill: relatedNodes.filter((n: any) => n.type === 'skill'),
+      job: relatedNodes.filter((n: any) => n.type === 'job'),
+      company: relatedNodes.filter((n: any) => n.type === 'company'),
+    };
+
     return {
       node,
       relatedNodes,
+      relatedByType,
       avgSalary: node.avgSalary,
       count: node.value,
     };
@@ -362,7 +397,7 @@ function App() {
               <div className="chart-container">
                 <ReactECharts
                   option={graphOption}
-                  style={{ height: '600px', width: '100%' }}
+                  style={{ height: '800px', width: '100%' }}
                   onEvents={{
                     click: (params: any) => {
                       if (params.dataType === 'node') {
@@ -376,7 +411,7 @@ function App() {
               <div className="chart-container">
                 <ReactECharts
                   option={heatmapOption}
-                  style={{ height: '600px', width: '100%' }}
+                  style={{ height: '800px', width: '100%' }}
                 />
               </div>
             )}
@@ -385,27 +420,85 @@ function App() {
           <aside className="info-panel">
             {selectedNodeInfo ? (
               <>
-                <h3>{selectedNodeInfo.node.name}</h3>
-                <div className="info-item">
-                  <span className="label">类型:</span>
-                  <span className="value">{selectedNodeInfo.node.type}</span>
+                <div className="node-detail">
+                  <div className="node-header">
+                    <span className={`node-type-badge ${selectedNodeInfo.node.type}`}>
+                      {selectedNodeInfo.node.type === 'skill' ? '技能' :
+                       selectedNodeInfo.node.type === 'job' ? '岗位' : '公司'}
+                    </span>
+                    <h3>{selectedNodeInfo.node.name}</h3>
+                  </div>
+                  <div className="node-stats">
+                    <div className="stat-item">
+                      <span className="stat-label">平均薪资</span>
+                      <span className="stat-value">{selectedNodeInfo.avgSalary || 'N/A'}元/天</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">出现次数</span>
+                      <span className="stat-value">{selectedNodeInfo.count}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="info-item">
-                  <span className="label">平均薪资:</span>
-                  <span className="value">{selectedNodeInfo.avgSalary || 'N/A'}元/天</span>
+
+                <div className="related-section">
+                  <div className="related-column jobs-column">
+                    <h4>相关岗位</h4>
+                    <div className="related-list">
+                      {selectedNodeInfo.relatedByType.job?.length > 0 ? (
+                        selectedNodeInfo.relatedByType.job.map((n: any) => (
+                          <button
+                            key={n.id}
+                            className="related-item"
+                            onClick={() => setSelectedNode(n.id)}
+                          >
+                            <span className="item-name">{n.name}</span>
+                            <span className="item-count">{n.value}次</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="no-data">无关联岗位</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="related-column companies-column">
+                    <h4>相关公司</h4>
+                    <div className="related-list">
+                      {selectedNodeInfo.relatedByType.company?.length > 0 ? (
+                        selectedNodeInfo.relatedByType.company.map((n: any) => (
+                          <button
+                            key={n.id}
+                            className="related-item"
+                            onClick={() => setSelectedNode(n.id)}
+                          >
+                            <span className="item-name">{n.name}</span>
+                            <span className="item-count">{n.value}次</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="no-data">无关联公司</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="info-item">
-                  <span className="label">出现次数:</span>
-                  <span className="value">{selectedNodeInfo.count}</span>
-                </div>
-                <div className="info-item">
-                  <span className="label">关联节点:</span>
-                  <div className="related-nodes">
-                    {selectedNodeInfo.relatedNodes?.map((n: any) => (
-                      <span key={n.id} className="related-tag">
-                        {n.name}
-                      </span>
-                    ))}
+
+                <div className="related-section skills-section">
+                  <h4>相关技能</h4>
+                  <div className="related-list skills-list">
+                    {selectedNodeInfo.relatedByType.skill?.length > 0 ? (
+                      selectedNodeInfo.relatedByType.skill.map((n: any) => (
+                        <button
+                          key={n.id}
+                          className="related-item skill-item"
+                          onClick={() => setSelectedNode(n.id)}
+                        >
+                          <span className="item-name">{n.name}</span>
+                          <span className="item-count">{n.value}次</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="no-data">无关联技能</p>
+                    )}
                   </div>
                 </div>
               </>
