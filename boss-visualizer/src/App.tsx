@@ -92,12 +92,143 @@ function App() {
     };
   }, [selectedNode, isNodeConnected]);
 
-  const getLinkStyle = useCallback((source: string, target: string) => {
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+    } : null;
+  };
+
+  const rgbToHex = (r: number, g: number, b: number) => {
+    return '#' + [r, g, b].map(x => {
+      const hex = Math.round(x).toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+  };
+
+  const hexToHsl = (hex: string) => {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return null;
+    const r = rgb.r / 255;
+    const g = rgb.g / 255;
+    const b = rgb.b / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0, s = 0;
+    const l = (max + min) / 2;
+
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+        case g: h = ((b - r) / d + 2) / 6; break;
+        case b: h = ((r - g) / d + 4) / 6; break;
+      }
+    }
+
+    return { h, s, l };
+  };
+
+  const hslToHex = (h: number, s: number, l: number) => {
+    const hue2rgb = (p: number, q: number, t: number) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+
+    let newR: number, newG: number, newB: number;
+    if (s === 0) {
+      newR = newG = newB = l;
+    } else {
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      newR = hue2rgb(p, q, h + 1/3);
+      newG = hue2rgb(p, q, h);
+      newB = hue2rgb(p, q, h - 1/3);
+    }
+
+    return rgbToHex(newR * 255, newG * 255, newB * 255);
+  };
+
+  const adjustColor = (hex: string, intensity: number) => {
+    const hsl = hexToHsl(hex);
+    if (!hsl) return hex;
+
+    const newS = Math.min(1, hsl.s + (1 - hsl.s) * intensity * 0.6);
+    const newL = Math.max(0.12, hsl.l * (1 - intensity * 0.5));
+
+    return hslToHex(hsl.h, newS, newL);
+  };
+
+  const getLinkColor = useCallback((source: string, target: string, value?: number) => {
+    if (!graphData) return '#999';
+    const sourceNode = graphData.nodes.find(n => n.id === source);
+    const targetNode = graphData.nodes.find(n => n.id === target);
+    if (!sourceNode || !targetNode) return '#999';
+
+    const colorPairs: Record<string, Record<string, string>> = {
+      skill: {
+        skill: '#5470c6',
+        job: '#91a7d4',
+        company: '#a9b7d6',
+        city: '#b8c5e2',
+        salary: '#c5d0e8',
+      },
+      job: {
+        skill: '#73c0de',
+        job: '#73c0de',
+        company: '#a8d8e8',
+        city: '#bce6f0',
+        salary: '#d0f0f5',
+      },
+      company: {
+        skill: '#fac858',
+        job: '#fdd36e',
+        company: '#fac858',
+        city: '#fde59a',
+        salary: '#fef0c0',
+      },
+      city: {
+        skill: '#95d475',
+        job: '#a8e090',
+        company: '#b8e8a8',
+        city: '#95d475',
+        salary: '#c0eab8',
+      },
+      salary: {
+        skill: '#ee6666',
+        job: '#f08888',
+        company: '#f5a8a8',
+        city: '#f8c0c0',
+        salary: '#ee6666',
+      },
+    };
+
+    let color = colorPairs[sourceNode.type]?.[targetNode.type] || '#999';
+
+    if (value !== undefined && value > 0) {
+      const maxValue = Math.max(...graphData.links.map(l => l.value));
+      const intensity = Math.min(1, value / (maxValue || 1));
+      color = adjustColor(color, intensity);
+    }
+
+    return color;
+  }, [graphData]);
+
+  const getLinkStyle = useCallback((source: string, target: string, value?: number) => {
     const baseOpacity = !selectedNode ? 0.6 : (isLinkConnected(source, target) ? 0.9 : 0.05);
     return {
       opacity: baseOpacity,
+      color: getLinkColor(source, target, value),
     };
-  }, [selectedNode, isLinkConnected]);
+  }, [selectedNode, isLinkConnected, getLinkColor]);
 
   const graphOption = useMemo((): EChartsOption => {
     if (!graphData || graphData.nodes.length === 0) {
@@ -173,12 +304,13 @@ function App() {
             target: link.target,
             lineStyle: {
               width: link.value,
-              ...getLinkStyle(link.source, link.target),
+              ...getLinkStyle(link.source, link.target, link.value),
             },
             emphasis: {
               lineStyle: {
                 width: link.value + 1,
                 opacity: !selectedNode ? 0.6 : (isLinkConnected(link.source, link.target) ? 0.9 : 0.05),
+                color: getLinkColor(link.source, link.target, link.value),
               },
             },
           })),
