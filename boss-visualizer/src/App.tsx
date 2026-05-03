@@ -70,19 +70,34 @@ function App() {
     setSelectedNode(null);
   }, [jobs]);
 
-  const getNodeStyle = useCallback((nodeId: string) => {
-    const baseOpacity = !selectedNode ? 1 : (nodeId === selectedNode ? 1 : 0.15);
-    return {
-      opacity: baseOpacity,
-    };
+  const isNodeConnected = useCallback((nodeId: string) => {
+    if (!selectedNode) return false;
+    if (!graphData) return false;
+    if (nodeId === selectedNode) return true;
+    return graphData.links.some(
+      link => (link.source === selectedNode && link.target === nodeId) ||
+              (link.target === selectedNode && link.source === nodeId)
+    );
+  }, [selectedNode, graphData]);
+
+  const isLinkConnected = useCallback((source: string, target: string) => {
+    if (!selectedNode) return false;
+    return source === selectedNode || target === selectedNode;
   }, [selectedNode]);
 
-  const getLinkStyle = useCallback((source: string, target: string) => {
-    const baseOpacity = !selectedNode ? 0.6 : (source === selectedNode || target === selectedNode ? 0.9 : 0.05);
+  const getNodeStyle = useCallback((nodeId: string) => {
+    const baseOpacity = !selectedNode ? 1 : (isNodeConnected(nodeId) ? 1 : 0.15);
     return {
       opacity: baseOpacity,
     };
-  }, [selectedNode]);
+  }, [selectedNode, isNodeConnected]);
+
+  const getLinkStyle = useCallback((source: string, target: string) => {
+    const baseOpacity = !selectedNode ? 0.6 : (isLinkConnected(source, target) ? 0.9 : 0.05);
+    return {
+      opacity: baseOpacity,
+    };
+  }, [selectedNode, isLinkConnected]);
 
   const graphOption = useMemo((): EChartsOption => {
     if (!graphData || graphData.nodes.length === 0) {
@@ -136,12 +151,20 @@ function App() {
               color: nodeColors[node.type] || '#999',
               ...getNodeStyle(node.id),
             },
+            label: {
+              show: true,
+              opacity: !selectedNode ? 1 : (isNodeConnected(node.id) ? 1 : 0.15),
+            },
             emphasis: {
               itemStyle: {
                 borderColor: '#333',
                 borderWidth: 2,
                 shadowBlur: 10,
                 shadowColor: 'rgba(0,0,0,0.3)',
+              },
+              label: {
+                show: true,
+                opacity: !selectedNode ? 1 : (isNodeConnected(node.id) ? 1 : 0.15),
               },
             },
           })),
@@ -155,6 +178,7 @@ function App() {
             emphasis: {
               lineStyle: {
                 width: link.value + 1,
+                opacity: !selectedNode ? 0.6 : (isLinkConnected(link.source, link.target) ? 0.9 : 0.05),
               },
             },
           })),
@@ -165,7 +189,7 @@ function App() {
             fontSize: 10,
           },
           force: {
-            repulsion: 120,
+            repulsion: 400,
             edgeLength: [60, 180],
           },
           lineStyle: {
