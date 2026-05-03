@@ -47,6 +47,7 @@ def worker(q, results, lock):
 def main():
     parser = argparse.ArgumentParser(description='Crawl Boss jobs with configurable thread count.')
     parser.add_argument('--threads', type=int, default=1, help='Number of threads to use for fetching job details (default: 1)')
+    parser.add_argument('--limit', type=int, default=1, help='Number of jobs to fetch (default: 1)')
     args = parser.parse_args()
 
     search_args = [
@@ -56,7 +57,7 @@ def main():
         "--degree", "本科",
         "--jobType", "实习",
         "--format", "json",
-        "--limit", "2"
+        "--limit", str(args.limit)
     ]
 
     print("Searching jobs...")
