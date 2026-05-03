@@ -2,6 +2,9 @@ import subprocess
 import json
 import csv
 import sys
+import queue
+import threading
+import argparse
 
 
 def run_opencli(args):
@@ -14,7 +17,38 @@ def run_opencli(args):
     return result.stdout
 
 
+def worker(q, results, lock):
+    while True:
+        task = q.get()
+        if task is None:  # Sentinel to stop the worker
+            q.task_done()
+            break
+        i, security_id, job = task
+        print(f"[{i+1}] {job.get('name', security_id)}...")
+        detail_output = run_opencli(["boss", "detail", security_id, "--format", "json"])
+
+        if detail_output:
+            try:
+                detail_list = json.loads(detail_output)
+                if isinstance(detail_list, list) and len(detail_list) > 0:
+                    result = detail_list[0]
+                else:
+                    result = job
+            except json.JSONDecodeError:
+                result = job
+        else:
+            result = job
+
+        with lock:
+            results[i] = result
+        q.task_done()
+
+
 def main():
+    parser = argparse.ArgumentParser(description='Crawl Boss jobs with configurable thread count.')
+    parser.add_argument('--threads', type=int, default=1, help='Number of threads to use for fetching job details (default: 1)')
+    args = parser.parse_args()
+
     search_args = [
         "boss", "search", "嵌入式",
         "--city", "南京",
@@ -22,7 +56,7 @@ def main():
         "--degree", "本科",
         "--jobType", "实习",
         "--format", "json",
-        "--limit", "10"
+        "--limit", "2"
     ]
 
     print("Searching jobs...")
@@ -35,28 +69,48 @@ def main():
         print("Unexpected output format", file=sys.stderr)
         return
 
-    print(f"Found {len(jobs)} jobs, fetching details...")
+    print(f"Found {len(jobs)} jobs, fetching details with {args.threads} threads...")
 
-    rows = []
+    # Prepare tasks: list of (i, security_id, job) for jobs with security_id
+    tasks = []
     for i, job in enumerate(jobs):
         security_id = job.get("security_id")
-        if not security_id:
-            continue
+        if security_id:
+            tasks.append((i, security_id, job))
 
-        print(f"[{i+1}/{len(jobs)}] {job.get('name', security_id)}...")
-        detail_output = run_opencli(["boss", "detail", security_id, "--format", "json"])
+    if not tasks:
+        print("No jobs with security_id to process")
+        return
 
-        if detail_output:
-            try:
-                detail_list = json.loads(detail_output)
-                if isinstance(detail_list, list) and len(detail_list) > 0:
-                    rows.append(detail_list[0])
-                else:
-                    rows.append(job)
-            except json.JSONDecodeError:
-                rows.append(job)
-        else:
-            rows.append(job)
+    # Create queue and results list
+    q = queue.Queue()
+    results = [None] * len(jobs)
+    lock = threading.Lock()
+
+    # Start worker threads
+    threads = []
+    for _ in range(args.threads):
+        t = threading.Thread(target=worker, args=(q, results, lock))
+        t.start()
+        threads.append(t)
+
+    # Put tasks into queue
+    for task in tasks:
+        q.put(task)
+
+    # Put sentinels to stop workers
+    for _ in range(args.threads):
+        q.put(None)
+
+    # Wait for all tasks to be done
+    q.join()
+
+    # Wait for threads to finish
+    for t in threads:
+        t.join()
+
+    # Collect rows, skipping None (for jobs without security_id, but we handled that)
+    rows = [result for result in results if result is not None]
 
     if not rows:
         print("No jobs to save")
