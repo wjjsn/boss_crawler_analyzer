@@ -3,6 +3,7 @@ import re
 import jieba
 from collections import defaultdict
 import warnings
+from tqdm import tqdm
 warnings.filterwarnings('ignore')
 
 # ========== 配置部分 ==========
@@ -214,7 +215,11 @@ def main():
     
     # 3. 提取技能强度
     print("🔍 提取技能需求强度...")
-    df['skills_parsed'], df['max_strength'] = zip(*df['combined_text'].apply(extract_all_skills))
+    results = []
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="提取技能"):
+        skills, max_strength = extract_all_skills(row['combined_text'])
+        results.append((skills, max_strength))
+    df['skills_parsed'], df['max_strength'] = zip(*results)
     
     # 4. 岗位分类
     print("🏷️ 岗位类型分类...")
@@ -233,7 +238,7 @@ def main():
     # 统计所有技能的出现频率和平均强度
     skill_stats = defaultdict(lambda: {'count': 0, 'total_strength': 0, 'strengths': []})
     
-    for skills in df['skills_parsed']:
+    for skills in tqdm(df['skills_parsed'], desc="统计技能"):
         for skill, strength in skills.items():
             skill_stats[skill]['count'] += 1
             skill_stats[skill]['total_strength'] += strength
