@@ -3,6 +3,7 @@ import re
 import jieba
 from collections import defaultdict
 import warnings
+from tqdm import tqdm
 warnings.filterwarnings('ignore')
 
 # ========== 配置部分 ==========
@@ -212,9 +213,14 @@ def main():
     # 合并文本列用于分析
     df['combined_text'] = df['description'].fillna('') + ' ' + df['skills'].fillna('')
     
-    # 3. 提取技能强度
+    # 3. 提取技能强度（使用进度条）
     print("🔍 提取技能需求强度...")
-    df['skills_parsed'], df['max_strength'] = zip(*df['combined_text'].apply(extract_all_skills))
+    results = []
+    for idx, row in tqdm(df.iterrows(), total=len(df), desc="提取技能强度", unit="job"):
+        result = extract_all_skills(row['combined_text'])
+        results.append(result)
+    
+    df['skills_parsed'], df['max_strength'] = zip(*results)
     
     # 4. 岗位分类
     print("🏷️ 岗位类型分类...")
