@@ -5,6 +5,7 @@ import sys
 import queue
 import threading
 import argparse
+from tqdm import tqdm
 
 
 def run_opencli(args):
@@ -17,14 +18,13 @@ def run_opencli(args):
     return result.stdout
 
 
-def worker(q, results, lock):
+def worker(q, results, lock, pbar):
     while True:
         task = q.get()
         if task is None:  # Sentinel to stop the worker
             q.task_done()
             break
         i, security_id, job = task
-        print(f"[{i+1}] {job.get('name', security_id)}...")
         detail_output = run_opencli(["boss", "detail", security_id, "--format", "json"])
 
         if detail_output:
@@ -41,6 +41,7 @@ def worker(q, results, lock):
 
         with lock:
             results[i] = result
+            pbar.update(1)
         q.task_done()
 
 
@@ -88,10 +89,13 @@ def main():
     results = [None] * len(jobs)
     lock = threading.Lock()
 
+    # Create progress bar
+    pbar = tqdm(total=len(tasks), desc="Fetching details", unit="job")
+
     # Start worker threads
     threads = []
     for _ in range(args.threads):
-        t = threading.Thread(target=worker, args=(q, results, lock))
+        t = threading.Thread(target=worker, args=(q, results, lock, pbar))
         t.start()
         threads.append(t)
 
@@ -105,6 +109,7 @@ def main():
 
     # Wait for all tasks to be done
     q.join()
+    pbar.close()
 
     # Wait for threads to finish
     for t in threads:

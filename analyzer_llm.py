@@ -6,6 +6,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 from collections import defaultdict, Counter
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -175,26 +176,28 @@ def main():
     
     print("\n🔍 正在分析每条岗位...\n")
     
-    for idx, row in df.iterrows():
-        company = str(row.get('company', '未知'))[:25]
-        name = str(row.get('name', '未知'))[:30]
-        print(f"  [{idx+1}/{len(df)}] {company} - {name}")
-        
-        skills = extract_skills_from_job(row['text_to_analyze'])
-        all_skills.append(skills)
-        
-        if skills:
-            for skill, score in skills.items():
-                skill_stats[skill]['count'] += 1
-                skill_stats[skill]['scores'].append(score)
-                skill_stats[skill]['total_score'] += score
+    # 使用进度条
+    with tqdm(total=len(df), desc="分析岗位", unit="job") as pbar:
+        for idx, row in df.iterrows():
+            company = str(row.get('company', '未知'))[:25]
+            name = str(row.get('name', '未知'))[:30]
             
-            top_skills = sorted(skills.items(), key=lambda x: x[1], reverse=True)[:3]
-            print(f"      📌 {', '.join([f'{s}({sc})' for s, sc in top_skills])}")
-        else:
-            print(f"      ⚠️ 未提取到技能")
-        
-        time.sleep(0.3)
+            skills = extract_skills_from_job(row['text_to_analyze'])
+            all_skills.append(skills)
+            
+            if skills:
+                for skill, score in skills.items():
+                    skill_stats[skill]['count'] += 1
+                    skill_stats[skill]['scores'].append(score)
+                    skill_stats[skill]['total_score'] += score
+                
+                top_skills = sorted(skills.items(), key=lambda x: x[1], reverse=True)[:3]
+                pbar.set_postfix_str(f"{company[:15]} - {', '.join([f'{s}({sc})' for s, sc in top_skills])}")
+            else:
+                pbar.set_postfix_str("未提取到技能")
+            
+            pbar.update(1)
+            time.sleep(0.3)
     
     # 统计结果
     print("\n" + "=" * 60)
