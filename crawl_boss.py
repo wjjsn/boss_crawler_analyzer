@@ -46,18 +46,18 @@ def fetch_batch_details(jobs, threads, pbar_job):
                 q.task_done()
                 break
             i, security_id, job = task
-            while True:
-                detail_output = run_opencli(["boss", "detail", security_id, "--format", "json"])
-                if detail_output:
-                    try:
-                        detail_list = json.loads(detail_output)
-                        if isinstance(detail_list, list) and len(detail_list) > 0:
-                            result = detail_list[0]
-                        else:
-                            result = job
-                        break
-                    except json.JSONDecodeError:
-                        pass
+            # while True:
+            detail_output = run_opencli(["boss", "detail", security_id, "--format", "json"])
+            result=None
+            if detail_output:
+                try:
+                    detail_list = json.loads(detail_output)
+                    if isinstance(detail_list, list) and len(detail_list) > 0:
+                        result = detail_list[0]
+                    else:
+                        result = job
+                except json.JSONDecodeError:
+                    pass
 
             with lock:
                 results[i] = result
