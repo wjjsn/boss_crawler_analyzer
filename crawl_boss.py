@@ -12,6 +12,11 @@ def run_opencli(args, retries=0):
     cmd = ["opencli"] + args
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
+        error_msg = result.stderr.lower()
+        if any(kw in error_msg for kw in ["account", "异常", "auth", "登录", "权限", "unauthorized"]):
+            print(f"Account exception detected, retrying in 60 seconds... (attempt {retries + 1})", file=sys.stderr)
+            time.sleep(60)
+            return run_opencli(args, retries + 1)
         print(f"Error: {' '.join(cmd)}", file=sys.stderr)
         print(result.stderr, file=sys.stderr)
         return None
