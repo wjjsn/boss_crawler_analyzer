@@ -8,7 +8,7 @@ import argparse
 from tqdm import tqdm
 
 
-def run_opencli(args):
+def run_opencli(args, retries=0):
     cmd = ["opencli"] + args
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -25,19 +25,20 @@ def worker(q, results, lock, pbar):
             q.task_done()
             break
         i, security_id, job = task
-        detail_output = run_opencli(["boss", "detail", security_id, "--format", "json"])
-
-        if detail_output:
-            try:
-                detail_list = json.loads(detail_output)
-                if isinstance(detail_list, list) and len(detail_list) > 0:
-                    result = detail_list[0]
-                else:
-                    result = job
-            except json.JSONDecodeError:
-                result = job
-        else:
-            result = job
+        while True:
+            detail_output = run_opencli(["boss", "detail", security_id, "--format", "json"])
+            if detail_output:
+                try:
+                    detail_list = json.loads(detail_output)
+                    if isinstance(detail_list, list) and len(detail_list) > 0:
+                        result = detail_list[0]
+                    else:
+                        result = job
+                    break
+                except json.JSONDecodeError:
+                    pass
+            print(f"Retrying job {security_id} in 60 seconds...", file=sys.stderr)
+            time.sleep(60)
 
         with lock:
             results[i] = result
