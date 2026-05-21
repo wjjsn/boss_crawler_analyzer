@@ -9,7 +9,12 @@
 - **LLM 分析** - 提取技能要求并评分，生成学习路径建议
 - **可视化展示** - React + ECharts 数据可视化
 
-## 效果演示
+## 效果演示（半成品）
+
+<img width="2560" height="1440" alt="2889ddaa411d99654d2f8db1f622fd50" src="https://github.com/user-attachments/assets/999e15e4-1bef-4c93-8fae-374c3ec4d84b" />
+
+<img width="2560" height="1440" alt="f6518392760e7d92b09cfe9a93a52941" src="https://github.com/user-attachments/assets/77306861-db56-4405-a0b9-e74938e3f61d" />
+
 
 ## 脚本
 
